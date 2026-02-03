@@ -3,49 +3,354 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hevrah NT - סטודיו פרטי לשירותי סרטים</title>
+  <title>מומינים תלת-מימד - חווית AI</title>
   <style>
+    :root {
+      color-scheme: light;
+      font-family: "Segoe UI", "Heebo", sans-serif;
+    }
     body {
-      font-family: Arial, sans-serif;
-      direction: rtl;
-      text-align: center;
-      background: #f5f5f5;
       margin: 0;
-      padding: 40px 20px;
-      color: #333;
+      background: #cfe9ff;
+      overflow: hidden;
+      direction: rtl;
     }
-    h1 {
-      color: #0055aa;
-      margin-bottom: 10px;
+    #overlay {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      max-width: 320px;
+      text-align: right;
+      z-index: 2;
     }
-    p {
-      font-size: 1.1em;
-      margin-bottom: 25px;
+    #overlay h1 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      color: #0d3a66;
     }
-    a.email-button {
-      display: inline-block;
-      padding: 12px 25px;
-      font-size: 1em;
+    #overlay p {
+      margin: 6px 0;
+      font-size: 14px;
+      color: #1f2e3a;
+      line-height: 1.4;
+    }
+    #chat-panel {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(9, 31, 57, 0.85);
       color: white;
-      background-color: #0055aa;
-      border-radius: 6px;
-      text-decoration: none;
-      transition: background-color 0.3s ease;
+      padding: 14px 18px;
+      border-radius: 14px;
+      width: 320px;
+      z-index: 3;
     }
-    a.email-button:hover {
-      background-color: #003d75;
+    #chat-panel h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
     }
-    footer {
-      margin-top: 50px;
-      font-size: 0.9em;
-      color: #777;
+    #chat-panel ul {
+      margin: 0 0 10px;
+      padding: 0;
+      list-style: none;
+      max-height: 140px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+    }
+    #chat-panel li {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 6px 10px;
+      border-radius: 8px;
+    }
+    #chat-panel input {
+      width: 100%;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+    #chat-panel input:focus {
+      outline: 2px solid #6dd5ff;
+    }
+    #hint {
+      position: fixed;
+      left: 20px;
+      bottom: 20px;
+      background: rgba(255, 255, 255, 0.85);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      color: #0d3a66;
+      z-index: 2;
+    }
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top, #e7f6ff 0%, #bde7ff 55%, #9fd3ff 100%);
+      color: #0d3a66;
+      font-size: 18px;
+      z-index: 4;
+    }
+    #loading p {
+      margin: 0;
+      padding: 18px 26px;
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 16px;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+    }
+    #fallback {
+      display: none;
+      margin-top: 12px;
+      font-size: 14px;
+      color: #1f2e3a;
+    }
+    canvas {
+      display: block;
     }
   </style>
 </head>
 <body>
-  <h1>Hevrah NT</h1>
-  <p>סטודיו פרטי לשירותי סרטים</p>
-  <a class="email-button" href="mailto:hevrah.nt@gmail.com">שלח/י לנו מייל</a>
-  <footer>© 2025 Hevrah NT. כל הזכויות שמורות.</footer>
+  <div id="loading">
+    <div>
+      <p>טוען את עמק המומינים...</p>
+      <div id="fallback">הדפדפן שלך לא תומך ב-WebGL. נסו לעדכן את הדפדפן או לצפות במכשיר אחר.</div>
+    </div>
+  </div>
+  <div id="overlay">
+    <h1>עיר המומינים</h1>
+    <p>השתמשו בחיצים כדי להזיז את המומין שלכם במרחב התלת-מימדי.</p>
+    <p>גשו למומינים האחרים ולחצו Enter כדי לדבר עם מנועי ה-AI שלהם.</p>
+  </div>
+
+  <div id="chat-panel">
+    <h2>שיחה עם החבורה</h2>
+    <ul id="chat-log"></ul>
+    <input id="chat-input" type="text" placeholder="כתבו הודעה ולחצו Enter..." />
+  </div>
+
+  <div id="hint">Shift: ריצה · חיצים: תנועה · Enter: שליחה</div>
+
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js";
+
+    const loadingOverlay = document.getElementById("loading");
+    const fallback = document.getElementById("fallback");
+
+    const isWebGLAvailable = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        return !!(window.WebGLRenderingContext && canvas.getContext("webgl"));
+      } catch {
+        return false;
+      }
+    };
+
+    if (!isWebGLAvailable()) {
+      fallback.style.display = "block";
+      throw new Error("WebGL not supported");
+    }
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color("#bde7ff");
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 6, 14);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambient);
+
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(8, 12, 6);
+    sun.castShadow = true;
+    scene.add(sun);
+
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(40, 64),
+      new THREE.MeshStandardMaterial({ color: "#7fdc8d" })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const lake = new THREE.Mesh(
+      new THREE.CircleGeometry(10, 64),
+      new THREE.MeshStandardMaterial({ color: "#69b7ff", transparent: true, opacity: 0.9 })
+    );
+    lake.rotation.x = -Math.PI / 2;
+    lake.position.set(-12, 0.02, -6);
+    scene.add(lake);
+
+    const createMoomin = (color, name) => {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.9, 1.6, 6, 12),
+        new THREE.MeshStandardMaterial({ color })
+      );
+      body.castShadow = true;
+      body.position.y = 1.5;
+      group.add(body);
+
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.75, 24, 24),
+        new THREE.MeshStandardMaterial({ color: "#fefefe" })
+      );
+      head.position.y = 2.9;
+      head.castShadow = true;
+      group.add(head);
+
+      const nose = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.15, 0.2, 0.5, 12),
+        new THREE.MeshStandardMaterial({ color: "#ffddc9" })
+      );
+      nose.rotation.x = Math.PI / 2;
+      nose.position.set(0, 2.85, 0.75);
+      group.add(nose);
+
+      const hat = new THREE.Mesh(
+        new THREE.ConeGeometry(0.5, 0.9, 18),
+        new THREE.MeshStandardMaterial({ color: "#ff8aa5" })
+      );
+      hat.position.set(0, 3.6, 0);
+      hat.castShadow = true;
+      group.add(hat);
+
+      const label = createLabel(name);
+      label.position.set(0, 4.2, 0);
+      group.add(label);
+
+      return group;
+    };
+
+    const createLabel = (text) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#1c2b36";
+      ctx.font = "24px Heebo, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(2.8, 1.4, 1);
+      return sprite;
+    };
+
+    const player = createMoomin("#ffffff", "את/ה");
+    player.position.set(0, 0, 0);
+    scene.add(player);
+
+    const aiMoomins = [
+      { name: "סנופקין", color: "#a8e6cf", position: new THREE.Vector3(6, 0, -4) },
+      { name: "מומינטרול", color: "#f6d365", position: new THREE.Vector3(-4, 0, 7) },
+      { name: "סנורקה", color: "#ffd1dc", position: new THREE.Vector3(10, 0, 5) }
+    ].map((data) => {
+      const npc = createMoomin(data.color, data.name);
+      npc.position.copy(data.position);
+      scene.add(npc);
+      return { ...data, object: npc };
+    });
+
+    const keys = new Set();
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+
+    window.addEventListener("keydown", (event) => {
+      keys.add(event.key);
+    });
+
+    window.addEventListener("keyup", (event) => {
+      keys.delete(event.key);
+    });
+
+    const chatInput = document.getElementById("chat-input");
+    const chatLog = document.getElementById("chat-log");
+
+    const aiResponses = [
+      "איזו הרפתקה! בואו נחקור את העמק יחד.",
+      "אני מנוע AI שתמיד מוכן לשיחה.",
+      "שמעתם את הרוח? היא מספרת סיפורים מעניינים.",
+      "בואו נבנה מחנה ליד האגם.",
+      "אני מעדיף לשוטט, אבל תמיד שמח לדבר."
+    ];
+
+    const addChatMessage = (author, message) => {
+      const li = document.createElement("li");
+      li.textContent = `${author}: ${message}`;
+      chatLog.appendChild(li);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    };
+
+    chatInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && chatInput.value.trim()) {
+        const message = chatInput.value.trim();
+        addChatMessage("את/ה", message);
+        chatInput.value = "";
+
+        const nearby = aiMoomins.find((npc) => npc.object.position.distanceTo(player.position) < 6);
+        const responder = nearby ? nearby.name : "מומין-בוט";
+        const response = aiResponses[Math.floor(Math.random() * aiResponses.length)];
+        setTimeout(() => addChatMessage(responder, response), 400);
+      }
+    });
+
+    const updateCamera = () => {
+      const offset = new THREE.Vector3(0, 6, 12);
+      const target = player.position.clone();
+      camera.position.copy(target).add(offset);
+      camera.lookAt(target.x, target.y + 2, target.z);
+    };
+
+    const animate = () => {
+      requestAnimationFrame(animate);
+
+      direction.set(0, 0, 0);
+      if (keys.has("ArrowUp")) direction.z -= 1;
+      if (keys.has("ArrowDown")) direction.z += 1;
+      if (keys.has("ArrowLeft")) direction.x -= 1;
+      if (keys.has("ArrowRight")) direction.x += 1;
+
+      const speed = keys.has("Shift") ? 0.15 : 0.09;
+      if (direction.length() > 0) {
+        direction.normalize();
+        velocity.copy(direction).multiplyScalar(speed);
+        player.position.add(velocity);
+        player.rotation.y = Math.atan2(direction.x, direction.z);
+      }
+
+      updateCamera();
+      renderer.render(scene, camera);
+      if (loadingOverlay) {
+        loadingOverlay.remove();
+      }
+    };
+
+    animate();
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
 </body>
 </html>
